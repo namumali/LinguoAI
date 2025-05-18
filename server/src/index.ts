@@ -1,27 +1,45 @@
-import app from './utils/app' // (server)
-import mongo from './utils/mongo' // (database)
+import dotenv from 'dotenv'
+dotenv.config()
+
+import app from './utils/app'            // Express app instance
+import mongo from './utils/mongo'        // MongoDB connection logic
 import { PORT } from './constants/index'
-import authRoutes from './routes/auth'
-import apiRoutes from './routes/api';
+import authRoutes from './routes/auth'   // /auth - Login, Register, Progress
+import apiRoutes from './routes/api'     // /api - AI, Progress, Lessons, etc.
+import progressRoutes from './routes/progress' // /api/progress - Progress tracking routes
 
-const bootstrap = async () => {
-  await mongo.connect()
+const bootstrap = async (): Promise<void> => {
+  try {
+    // Connect to MongoDB
+    await mongo.connect()
 
-  app.get('/', (req, res) => {
-    res.status(200).send('Hello, world!')
-  })
+    // Base health endpoints
+    app.get('/', (_req, res) => {
+      res.status(200).send('Hello, world!')
+    })
 
-  app.get('/healthz', (req, res) => {
-    res.status(204).end()
-  })
+    app.get('/healthz', (_req, res) => {
+      res.status(204).end()
+    })
 
-  app.use('/auth', authRoutes);
+    // Auth Routes (Login, Register, Authenticated Progress)
+    app.use('/auth', authRoutes)
 
-  app.use('/api', apiRoutes);
+    // API Routes (AI generation, public endpoints, etc.)
+    app.use('/api', apiRoutes)
 
-  app.listen(PORT, () => {
-    console.log(`✅ Server is listening on port: ${PORT}`)
-  })
+    // Progress model for user progress tracking
+    app.use('/api/progress', progressRoutes)  
+    
+
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`✅ Server is listening on port: ${PORT}`)
+    })
+  } catch (err) {
+    console.error('❌ Fatal error during server bootstrap:', err)
+    process.exit(1)
+  }
 }
 
 bootstrap()

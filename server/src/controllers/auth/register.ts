@@ -10,6 +10,8 @@ const register: RequestHandler = async (req, res, next) => {
       {
         username: joi.instance.string().required(),
         password: joi.instance.string().required(),
+        nativeLanguage: joi.instance.string().optional(),
+        learningLanguages: joi.instance.array().items(joi.instance.string()).optional(),
       },
       req.body
     )
@@ -18,7 +20,7 @@ const register: RequestHandler = async (req, res, next) => {
       return next(validationError)
     }
 
-    const { username, password } = req.body
+    const { username, password, nativeLanguage, learningLanguages } = req.body
 
     // Verify account username as unique
     const found = await Account.findOne({ username })
@@ -34,7 +36,7 @@ const register: RequestHandler = async (req, res, next) => {
     const hash = await crypt.hash(password)
 
     // Create account
-    const account = new Account({ username, password: hash })
+    const account = new Account({ username, password: hash, nativeLanguage, learningLanguages })
     await account.save()
 
     // Generate access token
@@ -44,7 +46,7 @@ const register: RequestHandler = async (req, res, next) => {
     const { password: _, ...data } = account.toObject()
 
     res.status(201).json({
-      message: 'Succesfully registered',
+      message: 'Successfully registered',
       data,
       token,
     })
