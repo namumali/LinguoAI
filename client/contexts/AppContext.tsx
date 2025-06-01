@@ -1,9 +1,10 @@
 // AppContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loginUser, registerUser, updateLanguages, updatePreferences } from '@/api/ai';
 
 interface UserProfile {
-  id: string;
+  id: string;  // maps to MongoDB _id
   name: string;
   email: string;
   nativeLanguage: string | null;
@@ -82,52 +83,40 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const newUserProfile: UserProfile = {
-      id: '123',
-      name: 'Demo User',
-      email,
-      nativeLanguage: null,
-      targetLanguage: null,
-      preferences: {
-        topicId: null,
-        preferredTime: null,
-        sessionLengthMinutes: 15,
-        daysPerWeek: 3,
-      },
-    };
-
-    setUserProfile(newUserProfile);
-    setIsLoggedIn(true);
-
     try {
-      await AsyncStorage.setItem('user', JSON.stringify(newUserProfile));
+      const userData = await loginUser(email, password);
+      const formattedProfile: UserProfile = {
+        id: userData.data.id,  // ✅ explicitly use 'id' provided by backend
+        name: userData.data.username,
+        email: userData.data.username,  // assuming username is email
+        nativeLanguage: userData.data.nativeLanguage,
+        targetLanguage: userData.data.learningLanguages[0] || null,
+        preferences: defaultUserProfile.preferences,
+      };
+      setUserProfile(formattedProfile);
+      setIsLoggedIn(true);
+      await AsyncStorage.setItem('user', JSON.stringify(formattedProfile));
     } catch (error) {
-      console.error('Error saving user data:', error);
+      console.error('Login failed:', error);
     }
   };
 
   const register = async (name: string, email: string, password: string) => {
-    const newUserProfile: UserProfile = {
-      id: '123',
-      name,
-      email,
-      nativeLanguage: null,
-      targetLanguage: null,
-      preferences: {
-        topicId: null,
-        preferredTime: null,
-        sessionLengthMinutes: 15,
-        daysPerWeek: 3,
-      },
-    };
-
-    setUserProfile(newUserProfile);
-    setIsLoggedIn(true);
-
     try {
-      await AsyncStorage.setItem('user', JSON.stringify(newUserProfile));
+      const userData = await registerUser(name, email, password);
+      const formattedProfile: UserProfile = {
+        id: userData.data.id,
+        name: userData.data.username,
+        email: userData.data.username,
+        nativeLanguage: userData.data.nativeLanguage,
+        targetLanguage: userData.data.learningLanguages[0] || null,
+        preferences: defaultUserProfile.preferences,
+      };
+      setUserProfile(formattedProfile);
+      setIsLoggedIn(true);
+      await AsyncStorage.setItem('user', JSON.stringify(formattedProfile));
     } catch (error) {
-      console.error('Error saving user data:', error);
+      console.error('Registration failed:', error);
     }
   };
 
@@ -143,36 +132,30 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   };
 
   const setUserLanguages = async (nativeLanguage: string, targetLanguage: string) => {
-    const updatedProfile = {
-      ...userProfile,
-      nativeLanguage,
-      targetLanguage,
-    };
-
-    setUserProfile(updatedProfile);
-
+    console.log('Sending updateLanguages with:', userProfile.id, nativeLanguage, targetLanguage);
     try {
-      await AsyncStorage.setItem('user', JSON.stringify(updatedProfile));
+      const updatedProfile = await updateLanguages(userProfile.id, nativeLanguage, targetLanguage);
+      setUserProfile(prev => ({
+        ...prev,
+        nativeLanguage: updatedProfile.nativeLanguage,
+        targetLanguage: updatedProfile.learningLanguages[0] || null,
+      }));
+      await AsyncStorage.setItem('user', JSON.stringify({ ...userProfile, ...updatedProfile }));
     } catch (error) {
-      console.error('Error saving user languages:', error);
+      console.error('Error updating languages:', error);
     }
   };
 
   const updateUserPreferences = async (preferences: Partial<UserProfile['preferences']>) => {
-    const updatedProfile = {
-      ...userProfile,
-      preferences: {
-        ...userProfile.preferences,
-        ...preferences,
-      },
-    };
-
-    setUserProfile(updatedProfile);
-
     try {
-      await AsyncStorage.setItem('user', JSON.stringify(updatedProfile));
+      const updatedProfile = await updatePreferences(userProfile.id, preferences);
+      setUserProfile(prev => ({
+        ...prev,
+        preferences: updatedProfile.preferences,
+      }));
+      await AsyncStorage.setItem('user', JSON.stringify({ ...userProfile, ...updatedProfile }));
     } catch (error) {
-      console.error('Error saving user preferences:', error);
+      console.error('Error updating preferences:', error);
     }
   };
 
@@ -181,7 +164,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   };
 
   if (!isHydrated) {
-    return null; // or a splash screen or loader component
+    return null;
   }
 
   return (

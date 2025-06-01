@@ -1,6 +1,5 @@
-// LearnScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { useAppContext } from '@/contexts/AppContext';
@@ -11,7 +10,7 @@ import { WordCard } from '@/components/learning/WordCard';
 import { Header } from '@/components/ui/Header';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { theme } from '@/constants/theme';
-import { alphabetData, wordData } from '@/constants/learningData';
+import { generateAlphabetCard, generateWordCard } from '@/api/ai';
 
 const { width } = Dimensions.get('window');
 
@@ -19,46 +18,43 @@ export default function LearnScreen() {
   const { isLoggedIn, userProfile } = useAppContext();
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
   const [learningMode, setLearningMode] = useState<'alphabet' | 'words'>('alphabet');
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [cardData, setCardData] = useState<any>(null);
   const [progress, setProgress] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  const fetchCard = async () => {
+    setLoading(true);
+    try {
+      const language = userProfile.targetLanguage || 'ru';
+      const letterOrWord = learningMode === 'alphabet' ? 'A' : 'hello';
+      const data = learningMode === 'alphabet'
+        ? await generateAlphabetCard(letterOrWord)
+        : await generateWordCard(letterOrWord, language);
+      setCardData(data);
+    } catch (err) {
+      console.error('Error fetching card:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!userProfile.nativeLanguage || !userProfile.targetLanguage) {
       setShowLanguageSelector(true);
-    }
-  }, [userProfile]);
-
-  useEffect(() => {
-    if (learningMode === 'alphabet') {
-      setProgress((currentIndex + 1) / alphabetData.length);
     } else {
-      setProgress((currentIndex + 1) / wordData.length);
+      fetchCard();
     }
-  }, [currentIndex, learningMode]);
+  }, [userProfile, learningMode]);
 
   const handleNext = () => {
-    const maxIndex = learningMode === 'alphabet' ? alphabetData.length - 1 : wordData.length - 1;
-    if (currentIndex < maxIndex) {
-      setCurrentIndex(currentIndex + 1);
-    } else if (learningMode === 'alphabet') {
+    if (learningMode === 'alphabet') {
       setLearningMode('words');
-      setCurrentIndex(0);
     }
+    fetchCard();
   };
 
-  const handlePrevious = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-    }
-  };
-
-  if (!isLoggedIn) {
-    return <LoginModal />;
-  }
-
-  if (showLanguageSelector) {
-    return <LanguageSelector onComplete={() => setShowLanguageSelector(false)} />;
-  }
+  if (!isLoggedIn) return <LoginModal />;
+  if (showLanguageSelector) return <LanguageSelector onComplete={() => setShowLanguageSelector(false)} />;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -66,45 +62,29 @@ export default function LearnScreen() {
 
       <View style={styles.progressContainer}>
         <ProgressBar progress={progress} />
-        <Text style={styles.progressText}>
-          {currentIndex + 1} of {learningMode === 'alphabet' ? alphabetData.length : wordData.length}
-        </Text>
+        <Text style={styles.progressText}>Progress</Text>
       </View>
 
       <View style={styles.contentContainer}>
-        {learningMode === 'alphabet' ? (
-          <Animated.View
-            key={`alphabet-${currentIndex}`}
-            entering={FadeInDown}
-            exiting={FadeOutUp}
-            style={styles.cardContainer}
-          >
-            <AlphabetCard data={alphabetData[currentIndex]} onNext={handleNext} />
-          </Animated.View>
+        {loading ? (
+          <ActivityIndicator size="large" color={theme.colors.primary} />
         ) : (
           <Animated.View
-            key={`word-${currentIndex}`}
+            key={learningMode}
             entering={FadeInDown}
             exiting={FadeOutUp}
             style={styles.cardContainer}
           >
-            <WordCard data={wordData[currentIndex]} onNext={handleNext} />
+            {learningMode === 'alphabet' && cardData && <AlphabetCard data={cardData} onNext={handleNext} />}
+            {learningMode === 'words' && cardData && <WordCard data={cardData} onNext={handleNext} />}
           </Animated.View>
         )}
       </View>
 
       <View style={styles.navigationContainer}>
-        <TouchableOpacity
-          style={[styles.navButton, currentIndex === 0 && styles.navButtonDisabled]}
-          onPress={handlePrevious}
-          disabled={currentIndex === 0}
-        >
-          <Text style={[styles.navButtonText, currentIndex === 0 && styles.navButtonTextDisabled]}>Previous</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.navButton} onPress={handleNext}>
           <Text style={styles.navButtonText}>
-            {learningMode === 'alphabet' && currentIndex === alphabetData.length - 1 ? 'Start Words' : 'Next'}
+            {learningMode === 'alphabet' ? 'Start Words' : 'Next'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -154,15 +134,9 @@ const styles = StyleSheet.create({
     minWidth: 120,
     alignItems: 'center',
   },
-  navButtonDisabled: {
-    backgroundColor: theme.colors.neutral200,
-  },
   navButtonText: {
     color: 'white',
     fontFamily: 'Inter-SemiBold',
     fontSize: 16,
-  },
-  navButtonTextDisabled: {
-    color: theme.colors.textSecondary,
   },
 });

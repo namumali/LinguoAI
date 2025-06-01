@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LineChart } from 'react-native-chart-kit';
 import { useAppContext } from '@/contexts/AppContext';
@@ -9,8 +9,8 @@ import { MaterialCard } from '@/components/learning/MaterialCard';
 import { ScheduleSelector } from '@/components/schedule/ScheduleSelector';
 import { Header } from '@/components/ui/Header';
 import { theme } from '@/constants/theme';
-import { learningMaterials, userProgressData, upcomingSchedule } from '@/constants/exploreData';
 import { Feather } from '@expo/vector-icons';
+import { getUserProgress, getRecommendedMaterials, getSchedule } from '@/api/ai';
 
 const { width } = Dimensions.get('window');
 
@@ -18,29 +18,44 @@ export default function ExploreScreen() {
   const { isLoggedIn, userProfile } = useAppContext();
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
   const [showScheduleSelector, setShowScheduleSelector] = useState(false);
+  const [progressData, setProgressData] = useState({
+    weeklyProgress: [0, 0, 0, 0],
+    totalLessons: 0,
+    wordsLearned: 0,
+    daysStreak: 0,
+  });
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [schedule, setSchedule] = useState<any[]>([]);
 
   useEffect(() => {
     if (isLoggedIn && !userProfile.nativeLanguage) {
       setShowLanguageSelector(true);
+    } else {
+      fetchExploreData();
     }
   }, [isLoggedIn, userProfile]);
 
-  if (!isLoggedIn) {
-    return <LoginModal />;
-  }
+  const fetchExploreData = async () => {
+    const language = userProfile.targetLanguage || 'ru';
+    try {
+      const progress = await getUserProgress(language);
+      const materials = await getRecommendedMaterials(language);
+      const schedule = await getSchedule();
+      setProgressData(progress);
+      setMaterials(materials);
+      setSchedule(schedule);
+    } catch (err) {
+      console.error('Error fetching explore data:', err);
+    }
+  };
 
-  if (showLanguageSelector) {
-    return <LanguageSelector onComplete={() => setShowLanguageSelector(false)} />;
-  }
-
-  if (showScheduleSelector) {
-    return <ScheduleSelector onComplete={() => setShowScheduleSelector(false)} />;
-  }
+  if (!isLoggedIn) return <LoginModal />;
+  if (showLanguageSelector) return <LanguageSelector onComplete={() => setShowLanguageSelector(false)} />;
+  if (showScheduleSelector) return <ScheduleSelector onComplete={() => setShowScheduleSelector(false)} />;
 
   return (
     <SafeAreaView style={styles.container}>
       <Header title="Explore" />
-      
       <ScrollView style={styles.scrollView}>
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -49,16 +64,11 @@ export default function ExploreScreen() {
               <Text style={styles.seeAllText}>Details</Text>
             </TouchableOpacity>
           </View>
-          
           <View style={styles.chartContainer}>
             <LineChart
               data={{
                 labels: ["Week 1", "Week 2", "Week 3", "Week 4"],
-                datasets: [
-                  {
-                    data: userProgressData.weeklyProgress
-                  }
-                ]
+                datasets: [{ data: progressData.weeklyProgress }]
               }}
               width={width - 32}
               height={180}
@@ -69,36 +79,28 @@ export default function ExploreScreen() {
                 decimalPlaces: 0,
                 color: (opacity = 1) => `rgba(62, 100, 255, ${opacity})`,
                 labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                style: {
-                  borderRadius: 16
-                },
-                propsForDots: {
-                  r: "6",
-                  strokeWidth: "2",
-                  stroke: theme.colors.primary
-                }
+                style: { borderRadius: 16 },
+                propsForDots: { r: "6", strokeWidth: "2", stroke: theme.colors.primary }
               }}
               bezier
               style={styles.chart}
             />
           </View>
-          
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{userProgressData.totalLessons}</Text>
+              <Text style={styles.statValue}>{progressData.totalLessons}</Text>
               <Text style={styles.statLabel}>Lessons</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{userProgressData.wordsLearned}</Text>
+              <Text style={styles.statValue}>{progressData.wordsLearned}</Text>
               <Text style={styles.statLabel}>Words</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{userProgressData.daysStreak}</Text>
+              <Text style={styles.statValue}>{progressData.daysStreak}</Text>
               <Text style={styles.statLabel}>Day Streak</Text>
             </View>
           </View>
         </View>
-        
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recommended Materials</Text>
@@ -106,18 +108,12 @@ export default function ExploreScreen() {
               <Text style={styles.seeAllText}>See All</Text>
             </TouchableOpacity>
           </View>
-          
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.materialsContainer}
-          >
-            {learningMaterials.map((material, index) => (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.materialsContainer}>
+            {materials.map((material, index) => (
               <MaterialCard key={index} material={material} />
             ))}
           </ScrollView>
         </View>
-        
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Upcoming Schedule</Text>
@@ -125,19 +121,16 @@ export default function ExploreScreen() {
               <Text style={styles.seeAllText}>Set Schedule</Text>
             </TouchableOpacity>
           </View>
-          
-          {upcomingSchedule.length > 0 ? (
+          {schedule.length > 0 ? (
             <View style={styles.scheduleContainer}>
-              {upcomingSchedule.map((item, index) => (
+              {schedule.map((item, index) => (
                 <View key={index} style={styles.scheduleItem}>
                   <View style={styles.scheduleIconContainer}>
-                  <Feather name="calendar" size={24} color="black" />
+                    <Feather name="calendar" size={24} color="black" />
                   </View>
                   <View style={styles.scheduleDetails}>
                     <Text style={styles.scheduleTitle}>{item.title}</Text>
-                    <Text style={styles.scheduleTime}>
-                      {item.day} • {item.time}
-                    </Text>
+                    <Text style={styles.scheduleTime}>{item.day} • {item.time}</Text>
                   </View>
                   <TouchableOpacity style={styles.scheduleAction}>
                     <Feather name="clock" size={24} color="black" />
@@ -149,13 +142,8 @@ export default function ExploreScreen() {
           ) : (
             <View style={styles.emptySchedule}>
               <Feather name="book-open" size={24} color="black" />
-              <Text style={styles.emptyScheduleText}>
-                No scheduled sessions yet.
-              </Text>
-              <TouchableOpacity 
-                style={styles.scheduleButton}
-                onPress={() => setShowScheduleSelector(true)}
-              >
+              <Text style={styles.emptyScheduleText}>No scheduled sessions yet.</Text>
+              <TouchableOpacity style={styles.scheduleButton} onPress={() => setShowScheduleSelector(true)}>
                 <Text style={styles.scheduleButtonText}>Schedule a Session</Text>
               </TouchableOpacity>
             </View>
@@ -167,161 +155,29 @@ export default function ExploreScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  section: {
-    marginBottom: 24,
-    paddingHorizontal: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 18,
-    color: theme.colors.text,
-  },
-  seeAllText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: theme.colors.primary,
-  },
-  chartContainer: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  chart: {
-    borderRadius: 12,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  statItem: {
-    flex: 1,
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginHorizontal: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  statValue: {
-    fontFamily: 'Inter-ExtraBold',
-    fontSize: 20,
-    color: theme.colors.primary,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  materialsContainer: {
-    paddingBottom: 8,
-  },
-  scheduleContainer: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  scheduleItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  scheduleIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.neutral100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  scheduleDetails: {
-    flex: 1,
-  },
-  scheduleTitle: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 16,
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  scheduleTime: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  scheduleAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.neutral100,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 16,
-  },
-  scheduleActionText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 12,
-    color: theme.colors.primary,
-    marginLeft: 4,
-  },
-  emptySchedule: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  emptyScheduleText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginTop: 12,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  scheduleButton: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  scheduleButtonText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-    color: 'white',
-  },
+  container: { flex: 1, backgroundColor: theme.colors.background },
+  scrollView: { flex: 1 },
+  section: { marginBottom: 24, paddingHorizontal: 16 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionTitle: { fontFamily: 'Inter-SemiBold', fontSize: 18, color: theme.colors.text },
+  seeAllText: { fontFamily: 'Inter-Regular', fontSize: 14, color: theme.colors.primary },
+  chartContainer: { backgroundColor: theme.colors.card, borderRadius: 12, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+  chart: { borderRadius: 12 },
+  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  statItem: { flex: 1, backgroundColor: theme.colors.card, borderRadius: 12, padding: 16, alignItems: 'center', marginHorizontal: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 1 },
+  statValue: { fontFamily: 'Inter-ExtraBold', fontSize: 20, color: theme.colors.primary, marginBottom: 4 },
+  statLabel: { fontFamily: 'Inter-Regular', fontSize: 14, color: theme.colors.textSecondary },
+  materialsContainer: { paddingBottom: 8 },
+  scheduleContainer: { backgroundColor: theme.colors.card, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+  scheduleItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  scheduleIconContainer: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.neutral100, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  scheduleDetails: { flex: 1 },
+  scheduleTitle: { fontFamily: 'Inter-SemiBold', fontSize: 16, color: theme.colors.text, marginBottom: 4 },
+  scheduleTime: { fontFamily: 'Inter-Regular', fontSize: 14, color: theme.colors.textSecondary },
+  scheduleAction: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.neutral100, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16 },
+  scheduleActionText: { fontFamily: 'Inter-Regular', fontSize: 12, color: theme.colors.primary, marginLeft: 4 },
+  emptySchedule: { backgroundColor: theme.colors.card, borderRadius: 12, padding: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+  emptyScheduleText: { fontFamily: 'Inter-Regular', fontSize: 16, color: theme.colors.textSecondary, marginTop: 12, marginBottom: 16, textAlign: 'center' },
+  scheduleButton: { backgroundColor: theme.colors.primary, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8 },
+  scheduleButtonText: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: 'white' },
 });

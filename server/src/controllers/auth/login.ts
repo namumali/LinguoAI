@@ -20,7 +20,7 @@ const login: RequestHandler = async (req, res, next) => {
 
     const { username, password } = req.body
 
-    // Get account from DB, and verify existance
+    // Get account from DB, and verify existence
     const account = await Account.findOne({ username })
 
     if (!account) {
@@ -43,17 +43,25 @@ const login: RequestHandler = async (req, res, next) => {
     // Generate access token
     const token = jwt.signToken({ uid: account._id, role: account.role })
 
-    // Remove password from response data
+    // Construct complete user profile to send to frontend
     const { password: _, ...accountData } = account.toObject()
 
     res.status(200).json({
-      message: 'Succesfully logged-in',
-      data: accountData,
+      message: 'Successfully logged-in',
+      data: {
+        id: accountData._id,            // ✅ explicitly pass as 'id'
+        username: account.username,
+        nativeLanguage: account.nativeLanguage,
+        learningLanguages: account.learningLanguages,
+        role: account.role,
+      },
       token,
     })
   } catch (error) {
     next(error)
   }
 }
+
+
 
 export default login

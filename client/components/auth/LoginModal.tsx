@@ -5,20 +5,19 @@ import { useAppContext } from '@/contexts/AppContext';
 import { theme } from '@/constants/theme';
 import { Feather } from '@expo/vector-icons';
 
-
 export function LoginModal() {
   const { login, register } = useAppContext();
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   
   const handleSubmit = () => {
     if (isLogin) {
-      login(email, password);
+      login(username, password);
     } else {
-      register(name, email, password);
+      register(name, username, password);
     }
   };
   
@@ -66,13 +65,12 @@ export function LoginModal() {
         )}
         
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Email</Text>
+          <Text style={styles.inputLabel}>Username</Text>
           <TextInput
             style={styles.input}
-            placeholder="your.email@example.com"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
+            placeholder="your_username"
+            value={username}
+            onChangeText={setUsername}
             autoCapitalize="none"
           />
         </View>
