@@ -96,7 +96,7 @@ Speak Tab
 <img width="1462" alt="image" src="https://github.com/user-attachments/assets/e1ddce66-4b8c-4f3c-838f-757d4a8bd0f7" />
 
 Progress Tab
-![Uploading image.png…]()
+<img width="1462" alt="image" src="https://github.com/user-attachments/assets/423bad1b-03b4-4fbb-b754-14dc2311b761" />
 
 
 
